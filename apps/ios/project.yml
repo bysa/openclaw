@@ -82,9 +82,9 @@ targets:
         embed: true
       - target: OpenClawActivityWidget
         embed: true
-      # A companion watch application belongs in the standard Watch bundle location.
-      # PlugIns is for extension products and breaks paired watch installation.
-      - target: OpenClawWatchApp
+      # LOCAL FORK: the Watch companion is disabled so an iPhone-only build does not require
+      # the pinned Rust/WebRTC toolchain. Re-enable by restoring this line.
+      # - target: OpenClawWatchApp
       - package: OpenClawKit
       - package: OpenClawKit
         product: OpenClawChatUI

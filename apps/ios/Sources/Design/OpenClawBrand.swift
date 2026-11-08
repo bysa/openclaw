@@ -65,10 +65,11 @@ enum OpenClawBrand {
     static let carapaceSea = Color(red: 79 / 255.0, green: 200 / 255.0, blue: 174 / 255.0)
     // Accent fills stay dark enough for white content; foreground accents adapt
     // separately so small labels retain 4.5:1 contrast on dark surfaces and tinted pills.
-    static let uiAccentFill = adaptiveUIColor(light: (183, 56, 51), dark: (198, 62, 56))
-    static let uiAccent = adaptiveUIColor(light: (183, 56, 51), dark: (255, 107, 102))
-    static let uiAccentHot = adaptiveUIColor(light: (204, 75, 69), dark: (232, 92, 86))
-    static let uiAccentHotForeground = adaptiveUIColor(light: (166, 55, 50), dark: (255, 123, 115))
+    // LOCAL FORK: Pocket Claw violet accent (was OpenClaw coral).
+    static let uiAccentFill = adaptiveUIColor(light: (91, 61, 214), dark: (124, 96, 240))
+    static let uiAccent = adaptiveUIColor(light: (91, 61, 214), dark: (167, 139, 250))
+    static let uiAccentHot = adaptiveUIColor(light: (110, 78, 232), dark: (146, 118, 246))
+    static let uiAccentHotForeground = adaptiveUIColor(light: (80, 52, 196), dark: (186, 162, 255))
     static let uiVoid = adaptiveUIColor(light: (246, 247, 249), dark: (11, 12, 17))
     static let uiObsidian = adaptiveUIColor(light: (255, 255, 255), dark: (19, 21, 28))
     static let uiTextSecondary = adaptiveUIColor(light: (90, 94, 110), dark: (168, 170, 191))

@@ -93,3 +93,11 @@ Restored structured verification plan at revision 64. Fresh crashes appeared aft
 Second narrow rendering candidate replaces the new task `ProgressView` with an explicit fixed-height HStack of per-step capsules, preserving real completed/total semantics without geometry measurement. Device build log `/tmp/pocket-task-device-segments.log`; still unverified until physical rerender and crash check.
 
 Second rendering candidate: signed device build/install/launch all succeeded; installed container B9C9B217-98A5-415B-B49A-C9D13C1530C3. On foreground device log at 03:58:51Z reports successful task start; subsequent log has no terminal task event, and crash listing comparison has no new widget report. User asked via text choice to lock phone and confirm actual display. Final simulator regression run on segmented-bar source: 36 passed, 0 failed, 0 skipped (`/tmp/pocket-task-segments-tests.{log,xcresult}`). Do not infer visual proof from the clean crash check. No commit until physical visibility/lifecycle verified.
+
+## Lock Screen verified — 2026-11-09
+
+Two user screenshots confirm the physical Lock Screen card: agent badge, task title ("iPhone Live Activity verification"), "Updates paused • open app", 2/5 count, per-step segment bar, current step, and "Next: …". The paused phase is correct because the app was backgrounded and transport suspended; it does not claim fresh progress.
+
+Committed as 22bccf4c (ios: show live task progress in the Live Activity) and pushed to fork branch pocket-local. Verified before commit: 36 unit tests pass; signed device build/install/launch succeed; Lock Screen rendering confirmed on the physical iPhone.
+
+Remaining gates: Dynamic Island presentation; completion transition (all steps completed -> "Plan completed" -> auto-end); fast-cancel coalescing; dismissal durability across relaunch.

@@ -239,22 +239,9 @@ final class LiveActivityManager {
     }
 
     func endActivity(reason: String) {
-        // Local transport suspension is not task completion. Preserve the last
-        // structured snapshot, explicitly paused, without claiming fresh progress.
-        if ["background_idle", "operator_disconnected", "gateway_loop_stopped"].contains(reason),
-           var task = self.arbiter.task
-        {
-            if task.state.taskProgress?.phase != .completed {
-                task.state.taskProgress?.phase = .stale
-                task.staleDate = .now
-            }
-            self.arbiter.clearAll()
-            self.arbiter.setTask(task)
-            self.stopStaleRefreshTaskIfIdle()
-            self.resetVoiceSamples()
-            self.reconcile(reason: reason)
-            return
-        }
+        // A Live Activity must not outlive the app's active use. Leaving a paused
+        // card behind kept the Lock Screen and Dynamic Island occupied after the
+        // app was backgrounded or closed, so every end reason clears it here.
         self.taskCompletionTask?.cancel()
         self.taskProjection = LiveActivityTaskProjection()
         self.arbiter.clearAll()
@@ -436,6 +423,9 @@ final class LiveActivityManager {
         let now = Date()
         let candidates = active.filter { activity in
             let state = activity.content.state
+            // Task activities are session-scoped and rebuilt from the current
+            // progress card. Restoring one would resurrect a card the user may
+            // have already seen finish, so a relaunch ends them like the rest.
             guard state.taskProgress == nil else { return false }
             guard activity.activityState == .active else { return false }
             return Self.shouldHydrate(

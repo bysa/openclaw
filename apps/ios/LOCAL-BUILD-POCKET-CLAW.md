@@ -72,6 +72,26 @@ The generated bundle id is `ai.openclawfoundation.app.test.shafigh-fw9ylpj4v2.de
 (local signing config appends the machine suffix). Read it from the built `Info.plist`
 rather than assuming.
 
+## Local feature: task-progress Live Activities
+
+`LiveActivityTaskProjection` (Sources/LiveActivity) projects the session progress
+card into the Live Activity: task title, current and next step, completed/total,
+and elapsed time. Rules kept deliberately:
+
+- Only explicit structured steps start or update the activity; a saved completed
+  plan never starts one.
+- Cancelled or dismissed revisions stay retired and do not reappear on the next
+  tool heartbeat.
+- Elapsed time is display only; it never implies progress.
+- Transport suspension shows an explicit paused state instead of deleting the card
+  or pretending work continued.
+- Reliable updates while the app is suspended would need ActivityKit push
+  (APNs), which this build does not configure.
+
+The widget renders progress as per-step capsules, not a linear `ProgressView`,
+because the geometry-based view trapped the widget extension during placement on
+device.
+
 ## Notes
 
 - Simulator-only noise that is not a failure: `WCSession is not paired`, `libCoreFSCache` fopen.

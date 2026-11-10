@@ -42,6 +42,7 @@ struct LiveActivityPresentationArbiter {
         let id: String
     }
 
+    private(set) var task: LiveActivityPresentationRequest?
     private(set) var connection: LiveActivityPresentationRequest?
     private(set) var attention: LiveActivityPresentationRequest?
     private(set) var voice: LiveActivityPresentationRequest?
@@ -52,6 +53,9 @@ struct LiveActivityPresentationArbiter {
     var current: LiveActivityPresentationRequest? {
         if let attention {
             return attention
+        }
+        if let task {
+            return self.voice ?? task
         }
         if let tool = self.tools.last {
             return tool.request
@@ -139,7 +143,18 @@ struct LiveActivityPresentationArbiter {
         self.hydratedToolFallback = nil
     }
 
+    mutating func setTask(_ request: LiveActivityPresentationRequest?) {
+        self.task = request
+    }
+
+    mutating func clearTaskAndTools() {
+        self.task = nil
+        self.tools.removeAll()
+        self.hydratedToolFallback = nil
+    }
+
     mutating func clearAll() {
+        self.task = nil
         self.connection = nil
         self.attention = nil
         self.setVoice(nil)

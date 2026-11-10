@@ -30,6 +30,18 @@ struct OpenClawActivityAttributes: ActivityAttributes {
         /// Recent playback-envelope samples, oldest first, quantized from 0...1.
         /// Live Activity updates carry the real audible signal across the app/widget boundary.
         var voiceSamples: [UInt8]?
+        var taskProgress: TaskProgress?
+
+        struct TaskProgress: Codable, Hashable {
+            enum Phase: String, Codable { case working, waiting, completed, stale }
+            var title: String
+            var currentStep: String?
+            var nextStep: String?
+            var completed: Int
+            var total: Int
+            var phase: Phase
+            var updatedAt: Date
+        }
 
         private enum LegacyCodingKeys: String, CodingKey {
             case statusText
@@ -44,7 +56,8 @@ struct OpenClawActivityAttributes: ActivityAttributes {
             startedAt: Date,
             agentBadge: String? = nil,
             toolName: String? = nil,
-            voiceSamples: [UInt8]? = nil)
+            voiceSamples: [UInt8]? = nil,
+            taskProgress: TaskProgress? = nil)
         {
             self.status = status
             self.verbatimDetail = verbatimDetail
@@ -52,11 +65,13 @@ struct OpenClawActivityAttributes: ActivityAttributes {
             self.agentBadge = agentBadge
             self.toolName = toolName
             self.voiceSamples = voiceSamples
+            self.taskProgress = taskProgress
         }
 
         init(from decoder: Decoder) throws {
             let container = try decoder.container(keyedBy: CodingKeys.self)
             self.startedAt = try container.decode(Date.self, forKey: .startedAt)
+            self.taskProgress = try container.decodeIfPresent(TaskProgress.self, forKey: .taskProgress)
 
             if let status = try container.decodeIfPresent(Status.self, forKey: .status) {
                 self.status = status

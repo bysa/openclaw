@@ -1,6 +1,7 @@
 @preconcurrency import ActivityKit
 import Foundation
 import OpenClawKit
+import OpenClawProtocol
 import os
 
 /// Owns the single ActivityKit presentation for connection, attention, tool,
@@ -22,6 +23,8 @@ final class LiveActivityManager {
     private let voiceSamplePublishDelay = Duration.milliseconds(500)
     private let staleRefreshDelay = Duration.seconds(240)
 
+    private var taskProjection = LiveActivityTaskProjection()
+    private var taskCompletionTask: Task<Void, Never>?
     private var arbiter = LiveActivityPresentationArbiter()
     private var currentActivity: Activity<OpenClawActivityAttributes>?
     private var currentState: OpenClawActivityAttributes.ContentState?
@@ -38,6 +41,43 @@ final class LiveActivityManager {
 
     private init() {
         self.hydrateCurrentAndPruneDuplicates()
+    }
+
+    func updateTask(card: ProgressCard?, sessionKey: String, agentName: String, agentBadge: String, cancel: Bool) {
+        GatewayDiagnostics.log(
+            "live activity: task observed hasCard=\(card != nil) steps=\(card?.steps?.count ?? 0) cancel=\(cancel)")
+        if self.taskProjection.sessionKey != sessionKey || cancel {
+            self.taskCompletionTask?.cancel()
+            self.arbiter.clearTaskAndTools()
+            self.stopStaleRefreshTaskIfIdle()
+        }
+        self.taskProjection.update(card: card, sessionKey: sessionKey, cancel: cancel)
+        guard var state = taskProjection.state else {
+            self.taskCompletionTask?.cancel()
+            self.arbiter.setTask(nil)
+            self.reconcile(reason: "task_cleared")
+            return
+        }
+        state.agentBadge = agentBadge
+        let completed = state.taskProgress?.phase == .completed
+        let request = LiveActivityPresentationRequest(
+            state: state,
+            staleDate: completed ? nil : state.taskProgress?.updatedAt.addingTimeInterval(300),
+            agentName: agentName,
+            sessionKey: sessionKey)
+        guard request != self.arbiter.task else { return }
+        self.taskCompletionTask?.cancel()
+        self.arbiter.setTask(request)
+        self.reconcile(reason: "task_changed")
+        if completed {
+            self.taskCompletionTask = Task {
+                try? await Task.sleep(for: .seconds(30))
+                guard !Task.isCancelled else { return }
+                self.taskProjection.retire()
+                self.arbiter.setTask(nil)
+                self.reconcile(reason: "task_completed")
+            }
+        }
     }
 
     func showConnecting(
@@ -199,6 +239,24 @@ final class LiveActivityManager {
     }
 
     func endActivity(reason: String) {
+        // Local transport suspension is not task completion. Preserve the last
+        // structured snapshot, explicitly paused, without claiming fresh progress.
+        if ["background_idle", "operator_disconnected", "gateway_loop_stopped"].contains(reason),
+           var task = self.arbiter.task
+        {
+            if task.state.taskProgress?.phase != .completed {
+                task.state.taskProgress?.phase = .stale
+                task.staleDate = .now
+            }
+            self.arbiter.clearAll()
+            self.arbiter.setTask(task)
+            self.stopStaleRefreshTaskIfIdle()
+            self.resetVoiceSamples()
+            self.reconcile(reason: reason)
+            return
+        }
+        self.taskCompletionTask?.cancel()
+        self.taskProjection = LiveActivityTaskProjection()
         self.arbiter.clearAll()
         self.stopStaleRefreshTaskIfIdle()
         self.resetVoiceSamples()
@@ -222,13 +280,24 @@ final class LiveActivityManager {
     }
 
     private func reconcile(reason: String) {
+        // A system/user-ended task must not reappear on the next tool heartbeat.
+        if let activity = currentActivity,
+           activity.activityState == .dismissed || activity.activityState == .ended,
+           currentState?.taskProgress != nil
+        {
+            self.taskCompletionTask?.cancel()
+            self.taskProjection.retire()
+            self.arbiter.clearTaskAndTools()
+            self.stopStaleRefreshTaskIfIdle()
+            self.endCurrentActivity(reason: "task_dismissed")
+        }
         guard let request = arbiter.current else {
             self.endCurrentActivity(reason: reason)
             return
         }
 
         if let activity = currentActivity,
-           activity.activityState == .active,
+           activity.activityState == .active || activity.activityState == .stale,
            activity.attributes.agentName != request.agentName ||
            activity.attributes.sessionKey != request.sessionKey
         {
@@ -237,7 +306,7 @@ final class LiveActivityManager {
             return
         }
 
-        if let activity = currentActivity, activity.activityState == .active {
+        if let activity = currentActivity, activity.activityState == .active || activity.activityState == .stale {
             self.enqueueLatestUpdate(
                 activity: activity,
                 state: request.state,
@@ -295,7 +364,10 @@ final class LiveActivityManager {
     }
 
     private func startActivity(_ request: LiveActivityPresentationRequest) {
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+        let enabled = ActivityAuthorizationInfo().areActivitiesEnabled
+        let hasTask = request.state.taskProgress != nil
+        GatewayDiagnostics.log("live activity: start requested enabled=\(enabled) task=\(hasTask)")
+        guard enabled else {
             self.logger.info("Live Activities disabled; skipping start")
             return
         }
@@ -310,8 +382,11 @@ final class LiveActivityManager {
             self.currentActivity = activity
             self.currentState = request.state
             self.currentStaleDate = request.staleDate
+            GatewayDiagnostics.log("live activity: start succeeded")
             self.logger.info("started live activity id=\(activity.id, privacy: .public)")
         } catch {
+            let nsError = error as NSError
+            GatewayDiagnostics.log("live activity: start failed domain=\(nsError.domain) code=\(nsError.code)")
             self.logger.error("failed to start live activity: \(error.localizedDescription, privacy: .public)")
         }
     }
@@ -342,6 +417,7 @@ final class LiveActivityManager {
 
     private func endCurrentActivity(reason: String) {
         guard let activity = currentActivity else { return }
+        GatewayDiagnostics.log("live activity: ending reason=\(reason)")
         let startedAt = self.currentState?.startedAt ?? .now
         self.activityUpdateTask?.cancel()
         self.activityUpdateTask = nil
@@ -360,6 +436,7 @@ final class LiveActivityManager {
         let now = Date()
         let candidates = active.filter { activity in
             let state = activity.content.state
+            guard state.taskProgress == nil else { return false }
             guard activity.activityState == .active else { return false }
             return Self.shouldHydrate(
                 status: state.status,

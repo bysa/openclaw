@@ -34,6 +34,9 @@ struct OpenClawLiveActivity: Widget {
                     }
                 }
                 .contentMargins(.horizontal, 8)
+                DynamicIslandExpandedRegion(.bottom) {
+                    if state.taskProgress != nil { self.taskDetails(state: state) }
+                }
             } compactLeading: {
                 self.agentAvatar(context: context, state: state, compact: true)
             } compactTrailing: {
@@ -49,20 +52,23 @@ struct OpenClawLiveActivity: Widget {
         context: ActivityViewContext<OpenClawActivityAttributes>,
         state: OpenClawActivityAttributes.ContentState) -> some View
     {
-        HStack(spacing: 10) {
-            self.agentAvatar(context: context, state: state)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("OpenClaw")
-                    .font(OpenClawActivityType.subheadBold)
-                    .lineLimit(1)
-                self.statusText(state: state)
-                    .font(OpenClawActivityType.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .minimumScaleFactor(0.8)
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 10) {
+                self.agentAvatar(context: context, state: state)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("OpenClaw")
+                        .font(OpenClawActivityType.subheadBold)
+                        .lineLimit(1)
+                    self.statusText(state: state)
+                        .font(OpenClawActivityType.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                }
+                Spacer()
+                self.trailingView(state: state)
             }
-            Spacer()
-            self.trailingView(state: state)
+            if state.taskProgress != nil { self.taskDetails(state: state) }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
@@ -85,27 +91,43 @@ struct OpenClawLiveActivity: Widget {
         }
     }
 
+    @ViewBuilder
     private func agentAvatar(
         context: ActivityViewContext<OpenClawActivityAttributes>,
         state: OpenClawActivityAttributes.ContentState,
         compact: Bool = false) -> some View
     {
-        TalkAvatarWaveformView(
-            phase: self.voicePhase(state: state),
-            palette: .liveActivity,
-            diameter: compact ? 30 : 42,
-            avatarDiameter: compact ? 16 : 28,
-            samples: self.voiceSamples(state: state))
-        {
-            Text(verbatim: context.state.agentBadge ?? Self.initials(context.attributes.agentName))
-                .font(OpenClawActivityType.symbol(size: compact ? 8 : 13, weight: .bold))
-                .foregroundStyle(.white)
-                .minimumScaleFactor(0.6)
-                .lineLimit(1)
-                .frame(width: compact ? 16 : 28, height: compact ? 16 : 28)
-                .background(OpenClawActivityStyle.surfaceElevated, in: Circle())
+        if self.voicePhase(state: state) == .idle {
+            // Nonvoice states have no waveform. Avoid archiving an invisible
+            // Canvas/TimelineView into WidgetKit's constrained island layout.
+            self.agentBadge(context: context, compact: compact)
+                .frame(width: compact ? 30 : 42, height: compact ? 30 : 42)
+                .accessibilityLabel(Text(verbatim: context.attributes.agentName))
+        } else {
+            TalkAvatarWaveformView(
+                phase: self.voicePhase(state: state),
+                palette: .liveActivity,
+                diameter: compact ? 30 : 42,
+                avatarDiameter: compact ? 16 : 28,
+                samples: self.voiceSamples(state: state))
+            {
+                self.agentBadge(context: context, compact: compact)
+            }
+            .accessibilityLabel(Text(verbatim: context.attributes.agentName))
         }
-        .accessibilityLabel(Text(verbatim: context.attributes.agentName))
+    }
+
+    private func agentBadge(
+        context: ActivityViewContext<OpenClawActivityAttributes>,
+        compact: Bool) -> some View
+    {
+        Text(verbatim: context.state.agentBadge ?? Self.initials(context.attributes.agentName))
+            .font(OpenClawActivityType.symbol(size: compact ? 8 : 13, weight: .bold))
+            .foregroundStyle(.white)
+            .minimumScaleFactor(0.6)
+            .lineLimit(1)
+            .frame(width: compact ? 16 : 28, height: compact ? 16 : 28)
+            .background(OpenClawActivityStyle.surfaceElevated, in: Circle())
     }
 
     private func voicePhase(state: OpenClawActivityAttributes.ContentState) -> TalkWaveformPhase {
@@ -129,15 +151,20 @@ struct OpenClawLiveActivity: Widget {
 
     @ViewBuilder
     private func compactTrailingView(state: OpenClawActivityAttributes.ContentState) -> some View {
-        switch state.status {
-        case .voiceSpeaking:
-            Text("LIVE")
-                .font(OpenClawActivityType.eyebrow)
-                .foregroundStyle(OpenClawActivityStyle.sea)
-        default:
-            self.statusIcon(state: state)
-                .font(OpenClawActivityType.symbol(size: 12, weight: .semibold))
-                .frame(width: 18, height: 18)
+        if let task = state.taskProgress {
+            Text(task.phase == .stale ? "?" : "\(task.completed)/\(task.total)")
+                .font(OpenClawActivityType.caption)
+        } else {
+            switch state.status {
+            case .voiceSpeaking:
+                Text("LIVE")
+                    .font(OpenClawActivityType.eyebrow)
+                    .foregroundStyle(OpenClawActivityStyle.sea)
+            default:
+                self.statusIcon(state: state)
+                    .font(OpenClawActivityType.symbol(size: 12, weight: .semibold))
+                    .frame(width: 18, height: 18)
+            }
         }
     }
 
@@ -190,6 +217,7 @@ struct OpenClawLiveActivity: Widget {
     }
 
     private func statusText(state: OpenClawActivityAttributes.ContentState) -> Text {
+        if let task = state.taskProgress { return Text(verbatim: task.title) }
         if let detail = state.verbatimDetail {
             return Text(verbatim: detail)
         }
@@ -213,10 +241,57 @@ struct OpenClawLiveActivity: Widget {
         }
     }
 
+    private func taskDetails(state: OpenClawActivityAttributes.ContentState) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            if let task = state.taskProgress {
+                HStack {
+                    Text(task.phase == .completed ? "Plan completed" :
+                        task.phase == .stale ? "Updates paused • open app" :
+                        task.phase == .waiting ? "Waiting for next step" : "Working")
+                        .font(OpenClawActivityType.caption)
+                    Spacer()
+                    Text("\(task.completed)/\(task.total)")
+                        .font(OpenClawActivityType.caption)
+                    if task.phase == .working || task.phase == .waiting {
+                        Text(state.startedAt, style: .timer)
+                            .font(OpenClawActivityType.caption)
+                            .monospacedDigit()
+                            .fixedSize()
+                            .accessibilityLabel("Time since tracking began")
+                    }
+                }
+                // Keep task progress layout primitive-only. WidgetKit's archived
+                // linear ProgressView traps in GeometryReader placement on device.
+                HStack(spacing: 2) {
+                    ForEach(0..<task.total, id: \.self) { index in
+                        Capsule()
+                            .fill(index < task.completed ? OpenClawActivityStyle.sea : .secondary.opacity(0.25))
+                            .frame(maxWidth: .infinity)
+                    }
+                }
+                .frame(height: 4)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(task.completed) of \(task.total) steps completed")
+                if let current = task.currentStep {
+                    Text(verbatim: current).font(OpenClawActivityType.caption).lineLimit(1)
+                }
+                if let next = task.nextStep {
+                    Text("Next: \(next)").font(OpenClawActivityType.caption).lineLimit(1)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
     private func displayState(
         context: ActivityViewContext<OpenClawActivityAttributes>) -> OpenClawActivityAttributes.ContentState
     {
         guard context.isStale else { return context.state }
+        if context.state.taskProgress != nil {
+            var state = context.state
+            if state.taskProgress?.phase != .completed { state.taskProgress?.phase = .stale }
+            return state
+        }
         switch context.state.status {
         case .connecting, .reconnecting, .approvalNeeded, .actionRequired, .attention,
              .toolRunning, .voiceListening, .voiceSpeaking, .voiceActive:

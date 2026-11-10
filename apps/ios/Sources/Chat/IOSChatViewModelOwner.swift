@@ -107,9 +107,30 @@ final class IOSChatViewModelOwner {
             },
             diagnosticsLog: { message in GatewayDiagnostics.log(message) })
         self.viewModel = viewModel
+        self.observeTaskProgress(viewModel)
         if let draft { viewModel.input = draft }
         self.hydratedComposerModel = draft != nil ? viewModel.composerModelResolver() : nil
         viewModel.load()
+    }
+
+    private func observeTaskProgress(_ model: OpenClawChatViewModel) {
+        guard self.viewModel === model else { return }
+        LiveActivityManager.shared.updateTask(
+            card: model.progressCard,
+            sessionKey: model.sessionKey,
+            agentName: self.presentationAgentName,
+            agentBadge: self.presentationAgentBadge,
+            cancel: model.isAborting)
+        withObservationTracking {
+            _ = model.progressCard
+            _ = model.sessionKey
+            _ = model.isAborting
+        } onChange: { [weak self, weak model] in
+            Task { @MainActor in
+                guard let self, let model else { return }
+                self.observeTaskProgress(model)
+            }
+        }
     }
 
     private func observePendingSend(appModel: NodeAppModel) {

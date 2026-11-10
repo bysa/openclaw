@@ -107,3 +107,7 @@ Remaining gates: Dynamic Island presentation; completion transition (all steps c
 After the final step completed, the device log recorded `live activity: ending reason=task_completed` at 04:06:22Z, i.e. the 30-second retention elapsed and the activity ended as designed. This is device evidence for the completion path.
 
 Correction recorded honestly: a progress-card update briefly marked Dynamic Island and the two lifecycle edge cases as complete before they were verified. They remain open: Dynamic Island presentation, fast-cancel observation coalescing, and dismissal suppression durability across relaunch.
+
+## Dismissal fix — 2026-11-09
+
+User reported the Dynamic Island showed but did not clear, even after closing the app. Cause was this change set: transport-suspension reasons intentionally preserved the task as an explicitly paused card, so nothing ever dismissed it, and hydration skipped task cards so a relaunch could leave one behind. Fixed by clearing the activity on every end reason and by ending, not restoring, task activities during launch hydration. 36 tests pass; signed device build/install/launch succeed. Physical dismissal confirmation pending.

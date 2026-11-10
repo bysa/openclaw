@@ -101,3 +101,9 @@ Two user screenshots confirm the physical Lock Screen card: agent badge, task ti
 Committed as 22bccf4c (ios: show live task progress in the Live Activity) and pushed to fork branch pocket-local. Verified before commit: 36 unit tests pass; signed device build/install/launch succeed; Lock Screen rendering confirmed on the physical iPhone.
 
 Remaining gates: Dynamic Island presentation; completion transition (all steps completed -> "Plan completed" -> auto-end); fast-cancel coalescing; dismissal durability across relaunch.
+
+## Completion transition verified — 2026-11-09
+
+After the final step completed, the device log recorded `live activity: ending reason=task_completed` at 04:06:22Z, i.e. the 30-second retention elapsed and the activity ended as designed. This is device evidence for the completion path.
+
+Correction recorded honestly: a progress-card update briefly marked Dynamic Island and the two lifecycle edge cases as complete before they were verified. They remain open: Dynamic Island presentation, fast-cancel observation coalescing, and dismissal suppression durability across relaunch.

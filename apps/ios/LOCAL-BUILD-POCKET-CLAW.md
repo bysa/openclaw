@@ -92,6 +92,20 @@ The widget renders progress as per-step capsules, not a linear `ProgressView`,
 because the geometry-based view trapped the widget extension during placement on
 device.
 
+## Local feature: hold-to-dictate
+
+The red composer microphone uses Apple Speech. Hold to capture; release to stop
+microphone input and append the transcript to the draft. Silence and finalized
+recognition segments do not end a held turn, and local dictation has no one-shot
+30-second cap. Release drains buffered recognition results for up to two seconds
+before falling back to the latest partial transcript. Cancel and backgrounding
+still release audio ownership and discard delayed callbacks.
+
+The continuous-Talk button is removed from this composer. Entering chat stops a
+restored continuous listener so it cannot block the hold-to-dictate mic. Voice-note
+recording remains available from the adjacent options menu. No OpenAI API key or
+transcription billing is needed for this path.
+
 ## Notes
 
 - Simulator-only noise that is not a failure: `WCSession is not paired`, `libCoreFSCache` fopen.

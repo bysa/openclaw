@@ -1682,7 +1682,8 @@ final class TalkModeManager {
             self.lastTranscript = ""
             self.lastHeard = nil
             _ = self.finishCapturedPushToTalk(
-                captureId, transcript: transcript.isEmpty ? nil : transcript,
+                captureId,
+                transcript: transcript.isEmpty ? nil : transcript,
                 status: transcript.isEmpty ? "empty" : "transcribed")
             return
         }

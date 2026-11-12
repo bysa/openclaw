@@ -17,6 +17,7 @@ public struct OpenClawChatDictationControl {
         }
     }
 
+    public var holdToTalk: Bool
     public var phase: Phase
     public var isAvailable: Bool
     public var partialTranscript: String
@@ -27,6 +28,7 @@ public struct OpenClawChatDictationControl {
 
     public init(
         phase: Phase,
+        holdToTalk: Bool = false,
         isAvailable: Bool,
         partialTranscript: String,
         level: Double,
@@ -34,6 +36,7 @@ public struct OpenClawChatDictationControl {
         finish: @escaping @MainActor () -> Void,
         cancel: @escaping @MainActor () -> Void)
     {
+        self.holdToTalk = holdToTalk
         self.phase = phase
         self.isAvailable = isAvailable
         self.partialTranscript = partialTranscript

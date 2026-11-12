@@ -302,8 +302,42 @@ struct OpenClawChatMicButton: View {
     let onCancelDictation: @MainActor () -> Void
     let onStartDictation: @MainActor () -> Void
 
+    @State private var isHolding = false
+
     var body: some View {
-        if let voiceNoteControl {
+        if let control = dictationControl, control.holdToTalk {
+            HStack(spacing: 0) {
+                if let voiceNoteControl {
+                    Menu { self.voiceNoteAction(voiceNoteControl) } label: {
+                        Image(systemName: "ellipsis")
+                            .frame(width: self.controlSize, height: self.controlSize)
+                    }
+                    .accessibilityLabel("Voice note options")
+                }
+                self.label
+                    .gesture(DragGesture(minimumDistance: 0)
+                        .onChanged { _ in
+                            guard !self.isHolding, self.isDictationActionEnabled,
+                                  !self.isDictationPending, !control.isActive else { return }
+                            self.isHolding = true
+                            self.onStartDictation()
+                        }
+                        .onEnded { _ in
+                            guard self.isHolding else { return }
+                            self.isHolding = false
+                            control.finish()
+                        })
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAction { self.performDictationAction() }
+                    .modifier(UnifiedChatMicMetadata(control: control, isPending: self.isDictationPending))
+                    .onDisappear {
+                        if self.isHolding {
+                            self.isHolding = false
+                            self.onCancelDictation()
+                        }
+                    }
+            }
+        } else if let voiceNoteControl {
             if self.isDictationActionEnabled, let dictationControl {
                 Menu {
                     self.voiceNoteAction(voiceNoteControl)
@@ -346,8 +380,16 @@ struct OpenClawChatMicButton: View {
         let showsStop = self.isDictationPending || self.dictationControl?.isActive == true
         return Image(systemName: showsStop ? "stop.fill" : "mic")
             .font(.system(size: OpenClawChatTypography.scaled(17), weight: .medium))
-            .foregroundStyle(showsStop ? OpenClawChatTheme.accent : .secondary)
+            .foregroundStyle(self.dictationControl?.holdToTalk == true
+                ? Color.white : (showsStop ? OpenClawChatTheme.accent : .secondary))
             .frame(width: self.controlSize, height: self.controlSize)
+            .background {
+                if self.dictationControl?.holdToTalk == true {
+                    Circle()
+                        .fill(OpenClawChatTheme.accent)
+                        .padding(6)
+                }
+            }
             .contentShape(Rectangle())
     }
 
@@ -449,8 +491,15 @@ private struct UnifiedChatMicMetadata: ViewModifier {
     }
 
     private var accessibilityLabel: Text {
-        if self.control.phase == .listening { return Text("Finish dictation") }
-        if self.isPending || self.control.isActive { return Text("Cancel dictation") }
+        if self.control.holdToTalk {
+            return Text(self.control.phase == .listening ? "Release to finish dictation" : "Hold to dictate")
+        }
+        if self.control.phase == .listening {
+            return Text("Finish dictation")
+        }
+        if self.isPending || self.control.isActive {
+            return Text("Cancel dictation")
+        }
         return Text("Dictate message")
     }
 
@@ -461,8 +510,15 @@ private struct UnifiedChatMicMetadata: ViewModifier {
     }
 
     private var helpText: Text {
-        if self.control.phase == .listening { return Text("Finish dictation") }
-        if self.isPending || self.control.isActive { return Text("Cancel dictation") }
+        if self.control.holdToTalk {
+            return Text(self.control.phase == .listening ? "Release to finish dictation" : "Hold to dictate")
+        }
+        if self.control.phase == .listening {
+            return Text("Finish dictation")
+        }
+        if self.isPending || self.control.isActive {
+            return Text("Cancel dictation")
+        }
         return Text("Transcribe speech into the message")
     }
 }

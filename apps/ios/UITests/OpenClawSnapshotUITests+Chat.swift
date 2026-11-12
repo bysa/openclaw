@@ -3,6 +3,41 @@ import Vision
 import XCTest
 
 extension OpenClawSnapshotUITests {
+    private func allowMicrophonePromptIfPresent() {
+        let alert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
+        if alert.exists, alert.staticTexts.matching(NSPredicate(format: "label CONTAINS[c] 'microphone'"))
+            .firstMatch.exists
+        {
+            alert.buttons.matching(NSPredicate(format: "label == %@", "Allow")).firstMatch.tap()
+        }
+    }
+
+    func testHeldDictationReleasesMicrophone() throws {
+        self.allowMicrophonePromptIfPresent()
+        launchApp(
+            for: ScreenshotTarget(initialTab: "chat", initialDestination: "chat", name: "held-dictation"),
+            additionalArguments: ["--openclaw-test-held-dictation"])
+        let app = try XCTUnwrap(self.app)
+        let microphone = app.buttons["chat-dictation-control"]
+        XCTAssertTrue(microphone.waitForExistence(timeout: 8))
+        XCTAssertEqual(microphone.label, "Hold to dictate")
+        XCTAssertFalse(app.buttons["chat-realtime-control"].exists)
+        XCTAssertFalse(app.buttons["chat-send-message"].exists)
+        attachScreenshot(named: "hold-to-dictate-ready")
+        microphone.press(forDuration: 2)
+        let activity = app.otherElements["chat-dictation-activity"]
+        let released = NSPredicate { _, _ in
+            !activity.exists && microphone.value as? String == "Not listening"
+        }
+        expectation(for: released, evaluatedWith: nil)
+        self.waitForExpectations(timeout: 8)
+        // Empty-audio feedback proves capture actually started, not merely that
+        // the control stayed idle for the entire press.
+        XCTAssertTrue(app.staticTexts["No speech heard. Try again and speak near the microphone."]
+            .waitForExistence(timeout: 5))
+        self.attachScreenshot(named: "hold-to-dictate-released")
+    }
+
     func testChatComposerAccessibilityControls() throws {
         self.launchApp(for: ScreenshotTarget(
             initialTab: "chat", initialDestination: "chat", name: "chat-accessibility-controls"))
@@ -13,7 +48,7 @@ extension OpenClawSnapshotUITests {
         XCTAssertTrue(model.waitForExistence(timeout: 3))
         XCTAssertEqual(model.value as? String, "gpt-5.6-sol")
         self.assertMinimumTouchTarget(model)
-        self.assertMinimumTouchTarget(app.buttons["chat-realtime-control"])
+        XCTAssertFalse(app.buttons["chat-realtime-control"].exists)
         self.assertMinimumTouchTarget(app.buttons["RootTabs.Sidebar.Show"])
         self.assertMinimumTouchTarget(app.buttons["Chat actions"])
         self.attachScreenshot(named: "accessibility-empty-composer-and-header")
@@ -189,6 +224,7 @@ extension OpenClawSnapshotUITests {
     }
 
     func testVoiceNoteDraftKeepsStopAvailableDuringActiveResponse() throws {
+        self.allowMicrophonePromptIfPresent()
         try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "Phone voice-note composer proof only")
         self.launchApp(
             for: ScreenshotTarget(
@@ -214,11 +250,14 @@ extension OpenClawSnapshotUITests {
 
         let microphone = app.buttons["chat-dictation-control"]
         XCTAssertTrue(microphone.waitForExistence(timeout: 5))
-        microphone.press(forDuration: 0.8)
+        let voiceNoteOptions = app.buttons["Voice note options"]
+        XCTAssertTrue(voiceNoteOptions.waitForExistence(timeout: 5))
+        voiceNoteOptions.tap()
 
         let recordVoiceNote = app.buttons["Record Voice Note"]
         XCTAssertTrue(recordVoiceNote.waitForExistence(timeout: 5))
         recordVoiceNote.tap()
+        self.allowMicrophonePromptIfPresent()
 
         let finishVoiceNote = app.buttons["Finish voice note"]
         XCTAssertTrue(finishVoiceNote.waitForExistence(timeout: 8))
@@ -838,7 +877,7 @@ extension OpenClawSnapshotUITests {
         try XCTSkipIf(UIDevice.current.userInterfaceIdiom != .phone, "Phone onboarding proof only")
         self.addUIInterruptionMonitor(withDescription: "Local network access") { alert in
             guard alert.buttons["Allow"].exists else { return false }
-            alert.buttons["Allow"].tap()
+            alert.buttons.matching(NSPredicate(format: "label == %@", "Allow")).firstMatch.tap()
             return true
         }
 
@@ -1094,7 +1133,7 @@ extension OpenClawSnapshotUITests {
         let app = XCUIApplication()
         addUIInterruptionMonitor(withDescription: "Local network access") { alert in
             guard alert.buttons["Allow"].exists else { return false }
-            alert.buttons["Allow"].tap()
+            alert.buttons.matching(NSPredicate(format: "label == %@", "Allow")).firstMatch.tap()
             return true
         }
         app.launchArguments += ["--openclaw-reset-onboarding"]

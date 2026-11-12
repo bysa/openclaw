@@ -652,8 +652,9 @@ final class OpenClawSnapshotUITests: XCTestCase {
         let app = try XCTUnwrap(self.app)
         let textField = self.chatMessageInput(in: app)
         XCTAssertTrue(textField.waitForExistence(timeout: 8))
-        let talkButton = app.buttons["chat-realtime-control"]
-        XCTAssertTrue(talkButton.waitForExistence(timeout: 5))
+        let voiceOptionsButton = app.buttons["Voice note options"]
+        XCTAssertFalse(app.buttons["chat-realtime-control"].exists)
+        XCTAssertTrue(voiceOptionsButton.waitForExistence(timeout: 5))
         let attachmentButton = app.buttons["chat-attachment-picker"]
         XCTAssertTrue(attachmentButton.waitForExistence(timeout: 5))
         let dictationButton = app.buttons["chat-dictation-control"]
@@ -672,11 +673,11 @@ final class OpenClawSnapshotUITests: XCTestCase {
         XCTAssertLessThanOrEqual(attachmentButton.frame.maxX, composerSurface.frame.maxX)
         XCTAssertGreaterThanOrEqual(dictationButton.frame.minX, composerSurface.frame.minX)
         XCTAssertLessThanOrEqual(dictationButton.frame.maxX, composerSurface.frame.maxX)
-        XCTAssertGreaterThanOrEqual(talkButton.frame.minX, composerSurface.frame.minX)
-        XCTAssertLessThanOrEqual(talkButton.frame.maxX, composerSurface.frame.maxX)
+        XCTAssertGreaterThanOrEqual(voiceOptionsButton.frame.minX, composerSurface.frame.minX)
+        XCTAssertLessThanOrEqual(voiceOptionsButton.frame.maxX, composerSurface.frame.maxX)
         self.assertMinimumTouchTarget(attachmentButton)
         self.assertMinimumTouchTarget(dictationButton)
-        self.assertMinimumTouchTarget(talkButton)
+        self.assertMinimumTouchTarget(voiceOptionsButton)
         let contextUsage = app.buttons["chat-context-usage"]
         XCTAssertTrue(contextUsage.waitForExistence(timeout: 5))
         let inlinePermissions = app.buttons["chat-composer-inline-permissions"]
@@ -704,7 +705,7 @@ final class OpenClawSnapshotUITests: XCTestCase {
             inlineModel,
             inlineEffort,
             dictationButton,
-            talkButton,
+            voiceOptionsButton,
         ])
         XCTAssertEqual(contextUsage.value as? String, "19 percent of the context window used")
         let compactHeight = textField.frame.height
@@ -713,7 +714,7 @@ final class OpenClawSnapshotUITests: XCTestCase {
         XCTAssertLessThanOrEqual(compactHeight, 44)
         XCTAssertLessThanOrEqual(textField.frame.maxY, attachmentButton.frame.minY + 2)
         XCTAssertLessThanOrEqual(abs(attachmentButton.frame.midY - dictationButton.frame.midY), 1)
-        XCTAssertLessThanOrEqual(abs(talkButton.frame.midY - dictationButton.frame.midY), 1)
+        XCTAssertLessThanOrEqual(abs(voiceOptionsButton.frame.midY - dictationButton.frame.midY), 1)
         self.attachScreenshot(named: "chat-composer-inline-controls")
 
         self.verifyComposerMenus(in: app)
@@ -727,7 +728,7 @@ final class OpenClawSnapshotUITests: XCTestCase {
             evaluatedWith: textField)
         wait(for: [composerGrew], timeout: 4)
         XCTAssertTrue(sendButton.waitForExistence(timeout: 3))
-        XCTAssertTrue(talkButton.waitForNonExistence(timeout: 3))
+        XCTAssertTrue(voiceOptionsButton.exists)
         self.assertMinimumTouchTarget(sendButton)
         XCTAssertGreaterThanOrEqual(composerSurface.frame.height, compactSurfaceHeight + 12)
         XCTAssertLessThanOrEqual(textField.frame.maxY, attachmentButton.frame.minY + 2)

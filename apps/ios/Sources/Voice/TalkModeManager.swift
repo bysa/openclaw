@@ -193,6 +193,7 @@ final class TalkModeManager {
     private var continuousTranscriptProcessingGeneration: UInt64?
     private var pttAudioOwnershipEndHandler: (@MainActor (String) -> Void)?
     private var pttAutoStopEnabled: Bool = false
+    private var pttCompletedTranscript = ""
     private var pttOnceOperations: [String: TalkPushToTalkOnceOperation] = [:]
     private var pttTimeoutTask: Task<Void, Never>?
 
@@ -905,6 +906,7 @@ final class TalkModeManager {
         self.captureMode = .pushToTalk
         onCaptureReserved(captureId)
         self.lastTranscript = ""
+        self.pttCompletedTranscript = ""
         self.lastHeard = nil
 
         do {
@@ -1031,6 +1033,7 @@ final class TalkModeManager {
 
     func beginPushToTalkOnce(
         maxDurationSeconds: TimeInterval = 12,
+        autoStop: Bool = true,
         transcriptionOnly: Bool = false,
         canStartCapture: @MainActor () -> Bool = { true },
         onCaptureReserved: @MainActor (String) -> Void = { _ in }) async throws -> TalkPushToTalkOnceStart
@@ -1057,9 +1060,11 @@ final class TalkModeManager {
                 captureId: captureId,
                 canStartCapture: canStartCapture)
             self.pttOnceOperations[captureId] = TalkPushToTalkOnceOperation()
-            self.pttAutoStopEnabled = true
-            self.startSilenceMonitor(pttCaptureId: captureId)
-            self.schedulePTTTimeout(seconds: maxDurationSeconds, captureId: captureId)
+            self.pttAutoStopEnabled = autoStop
+            if autoStop {
+                self.startSilenceMonitor(pttCaptureId: captureId)
+                self.schedulePTTTimeout(seconds: maxDurationSeconds, captureId: captureId)
+            }
             return .started(captureId: captureId)
         } catch {
             _ = self.cancelPushToTalk(captureId: captureId)
@@ -1459,6 +1464,21 @@ final class TalkModeManager {
         }
 
         GatewayDiagnostics.log("talk speech: error=\(msg)")
+        if self.captureMode == .pushToTalk, !self.pttAutoStopEnabled,
+           let captureId = self.activePTTCaptureId
+        {
+            // A quiet held microphone is not a completed user turn.
+            if (error as NSError).code == 1110 || lowered.contains("no speech detected") {
+                self.pttCompletedTranscript = self.lastTranscript
+                do {
+                    try self.startRecognition(pttCaptureId: captureId)
+                    return false
+                } catch {
+                    // A real audio failure is surfaced after releasing ownership.
+                }
+            }
+            _ = self.cancelPushToTalk(captureId: captureId)
+        }
         if !self.isSpeaking {
             if self.isEnabled, msg.localizedCaseInsensitiveContains("no speech detected") {
                 // Treat as transient silence. Don't scare users with an error banner.
@@ -1568,6 +1588,25 @@ final class TalkModeManager {
         }
 
         guard self.isListening else { return }
+        if self.captureMode == .pushToTalk, !self.pttAutoStopEnabled {
+            // Apple can finalize a recognition task during a held pause. Keep the
+            // turn open and retain completed segments until the user releases.
+            self.lastTranscript = [self.pttCompletedTranscript, trimmed]
+                .filter { !$0.isEmpty }.joined(separator: " ")
+            if !trimmed.isEmpty {
+                self.lastHeard = Date()
+            }
+            if isFinal, let captureId = activePTTCaptureId {
+                self.pttCompletedTranscript = self.lastTranscript
+                do {
+                    try self.startRecognition(pttCaptureId: captureId)
+                } catch {
+                    _ = self.cancelPushToTalk(captureId: captureId)
+                    self.setStatus(String(localized: "Speech recognition unavailable"), phase: .idle)
+                }
+            }
+            return
+        }
         if !trimmed.isEmpty {
             self.lastTranscript = trimmed
             self.lastHeard = Date()

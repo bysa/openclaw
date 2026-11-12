@@ -162,9 +162,9 @@ struct ChatProTab: View {
                 messagePlaceholder: self.messagePlaceholder,
                 emptyAssistantIntro: String(localized: "What would you like to work on?"),
                 emptyAssistantPrompts: Self.emptyAssistantPrompts,
-                talkControl: Self.shouldExposeCaptureControl(
-                    isAttachmentOwnerPinned: viewModel.isAttachmentOwnerPinned,
-                    isCaptureInFlight: self.appModel.talkMode.isEnabled) ? self.talkControl : nil,
+                // Hold-to-dictate is the composer voice action; continuous Talk
+                // remains available outside the composer.
+                talkControl: nil,
                 dictationControl: Self.shouldExposeCaptureControl(
                     isAttachmentOwnerPinned: viewModel.isAttachmentOwnerPinned,
                     isCaptureInFlight: self.appModel.isChatDictationPending || self.appModel.isChatDictationActive)
@@ -403,6 +403,7 @@ struct ChatProTab: View {
     private var dictationControl: OpenClawChatDictationControl {
         OpenClawChatDictationControl(
             phase: self.appModel.chatDictationPhase,
+            holdToTalk: true,
             isAvailable: !self.appModel.isTalkCaptureActive || self.appModel.chatDictationPhase != .idle,
             partialTranscript: self.appModel.chatDictationPartialTranscript,
             level: self.appModel.chatDictationLevel,

@@ -3956,6 +3956,24 @@ private final class TimingOutDeviceStatusService: DeviceStatusServicing {
         #expect(appModel._test_pttVoiceWakeLeaseCaptureIds().isEmpty)
     }
 
+    @Test @MainActor func `held chat dictation retains finalized segments until release`() async throws {
+        let (talkMode, appModel) = makeTalkModel()
+        defer { appModel.cancelChatDictation() }
+        let transcription = Task { @MainActor in try await appModel.transcribeChatDraft() }
+        await waitForTalkCondition { appModel.chatDictationPhase == .listening }
+        let captureId = try #require(talkMode._test_activePushToTalkCaptureId())
+        await talkMode._test_handlePushToTalkTranscript("First sentence.", isFinal: true, captureId: captureId)
+        #expect(appModel.chatDictationPhase == .listening)
+        #expect(talkMode.isPushToTalkActive)
+        await talkMode._test_handlePushToTalkTranscript("After a pause.", isFinal: false, captureId: captureId)
+        #expect(appModel.chatDictationPartialTranscript == "First sentence. After a pause.")
+        appModel.finishChatDictation()
+        let result = try await transcription.value
+        #expect(result == "First sentence. After a pause.")
+        #expect(!talkMode.isPushToTalkActive)
+        #expect(appModel._test_pttVoiceWakeLeaseCaptureIds().isEmpty)
+    }
+
     @Test @MainActor func `finishing chat dictation without speech explains how to retry`() async throws {
         let (talkMode, appModel) = makeTalkModel()
         let transcription = Task { @MainActor in
@@ -4185,6 +4203,38 @@ private final class TimingOutDeviceStatusService: DeviceStatusServicing {
         #expect(appModel.chatDictationPhase == .starting)
 
         appModel.cancelChatDictation()
+        #expect(appModel.isChatDictationPending)
+        barrier.release()
+
+        await #expect(throws: Error.self) {
+            try await transcription.value
+        }
+        #expect(!appModel.isChatDictationPending)
+        #expect(!appModel.isChatDictationActive)
+        #expect(appModel.chatDictationPhase == .idle)
+        #expect(talkMode._test_activePushToTalkCaptureId() == nil)
+        #expect(appModel._test_pttVoiceWakeLeaseCaptureIds().isEmpty)
+    }
+
+    @Test @MainActor func `release invalidates dictation preparation before capture reservation`() async {
+        let (talkMode, appModel) = makeTalkModel()
+        let barrier = TalkPreparationBarrier()
+        appModel.testTalkCapturePreparationHandler = { await barrier.suspendFirstPreparation() }
+        defer {
+            barrier.release()
+            appModel.testTalkCapturePreparationHandler = nil
+            appModel.voiceWake.stop()
+        }
+
+        let transcription = Task { @MainActor in
+            try await appModel.transcribeChatDraft()
+        }
+        await barrier.waitUntilEntered()
+        #expect(appModel.isChatDictationPending)
+        #expect(!appModel.isChatDictationActive)
+        #expect(appModel.chatDictationPhase == .starting)
+
+        appModel.finishChatDictation()
         #expect(appModel.isChatDictationPending)
         barrier.release()
 

@@ -595,7 +595,14 @@ struct OpenClawApp: App {
         (UserDefaults(suiteName: OpenClawAppGroup.identifier) ?? .standard)
             .removeObject(forKey: "share.defaultInstruction")
         OpenClawType.installUIKitAppearance()
-        let appModel = NodeAppModel(audioAdmissionInitiallyAllowed: false, restoringSavedGatewayRoute: true)
+        #if DEBUG && targetEnvironment(simulator)
+        let talkMode = TalkModeManager(
+            allowSimulatorCapture: ProcessInfo.processInfo.arguments.contains("--openclaw-test-held-dictation"))
+        #else
+        let talkMode = TalkModeManager()
+        #endif
+        let appModel = NodeAppModel(
+            talkMode: talkMode, audioAdmissionInitiallyAllowed: false, restoringSavedGatewayRoute: true)
         #if DEBUG
         if ProcessInfo.processInfo.arguments.contains("--openclaw-reset-onboarding") {
             // Reruns must exercise onboarding instead of saved pairing state.

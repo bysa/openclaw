@@ -819,7 +819,9 @@ struct OpenClawChatComposer: View {
                 style: .compact(
                     controlHeight: self.cleanControlHeight,
                     iconControlSize: self.cleanIconControlSize))
-        } else {
+        } else if self.dictationControl?.holdToTalk != true ||
+            self.viewModel.hasDraftToSend || self.viewModel.hasBlockingRunActivity
+        {
             sendButton
                 .frame(width: cleanControlHeight, height: cleanControlHeight)
         }

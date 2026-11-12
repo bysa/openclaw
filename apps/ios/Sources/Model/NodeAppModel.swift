@@ -2724,7 +2724,7 @@ final class NodeAppModel {
                 },
                 operation: { canStartCapture, onCaptureReserved in
                     try await self.talkMode.beginPushToTalkOnce(
-                        maxDurationSeconds: 30,
+                        autoStop: false,
                         transcriptionOnly: true,
                         canStartCapture: canStartCapture,
                         onCaptureReserved: onCaptureReserved)
@@ -2774,7 +2774,11 @@ final class NodeAppModel {
     }
 
     func finishChatDictation() {
-        guard let captureId = self.chatDictationCaptureId else { return }
+        guard let captureId = self.chatDictationCaptureId, self.talkMode.isPushToTalkActive else {
+            // Releasing during permission/preparation must not open the mic later.
+            self.cancelChatDictation()
+            return
+        }
         _ = self.talkMode.endPushToTalk(captureId: captureId)
     }
 

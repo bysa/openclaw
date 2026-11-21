@@ -46,7 +46,8 @@ extension OpenClawSnapshotUITests {
         XCTAssertTrue(input.waitForExistence(timeout: 8))
         let model = app.buttons["chat-composer-inline-model"]
         XCTAssertTrue(model.waitForExistence(timeout: 3))
-        XCTAssertEqual(model.value as? String, "gpt-5.6-sol")
+        // The model control exposes the catalog display name, not the raw model ID.
+        XCTAssertEqual(model.value as? String, "GPT-5.6")
         self.assertMinimumTouchTarget(model)
         XCTAssertFalse(app.buttons["chat-realtime-control"].exists)
         self.assertMinimumTouchTarget(app.buttons["RootTabs.Sidebar.Show"])
@@ -74,7 +75,7 @@ extension OpenClawSnapshotUITests {
         self.attachScreenshot(named: "accessibility-model-choice-visible")
         app.coordinate(withNormalizedOffset: .zero)
             .withOffset(CGVector(dx: visibleRow.midX, dy: visibleRow.midY)).tap()
-        self.waitForValue("claude-opus-4-1", of: model)
+        self.waitForValue("Claude Opus 4.1", of: model)
         input.tap()
         input.typeText("Accessible draft")
         XCTAssertTrue((input.value as? String ?? "").contains("Accessible draft"))

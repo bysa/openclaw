@@ -112,3 +112,22 @@ transcription billing is needed for this path.
 - For a physical device you must run `scripts/ios-configure-signing.sh` (already part of
   `pnpm ios:build`) and set a personal team; expect a unique bundle id per machine.
 - Keep `apps/ios/project.yml` changes minimal and documented so upstream updates stay mergeable.
+
+## Upstream sync verification
+
+After merging upstream, reread `apps/ios/AGENTS.md` for new build gates.
+The native localization inventory scans Android as well as Apple sources; include
+`apps/android` and `apps/.i18n` in the sparse checkout before running
+`pnpm native:i18n:baseline` followed by `pnpm native:i18n:verify`.
+Commit the source inventory, not regenerated locale catalogs.
+
+Run focused suites `NodeAppModelInvokeTests`, `LiveActivityTaskProjectionTests`,
+`LiveActivityPresentationArbiterTests`, `TalkMicrophoneMuteTests`, and
+`OpenClawTypographyTests`. Composer UI checks cover hold/release, accessibility
+controls, and voice-note capture during a response. UI model-value assertions
+follow catalog display names, not raw IDs.
+
+Keep shared chat files within the lint file-length limit by moving cohesive
+helpers to existing extensions or focused source files, not weakening the limit.
+When inspecting a partial clone, scope whitespace checks to the iOS/shared changes;
+whole-monorepo checks can hydrate thousands of unrelated blobs.

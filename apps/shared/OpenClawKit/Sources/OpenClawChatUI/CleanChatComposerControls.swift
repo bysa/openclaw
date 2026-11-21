@@ -54,7 +54,7 @@ enum CleanChatComposerMetrics {
     static let footerBlockInset: CGFloat = 6
     static let rowGap: CGFloat = 4
     static let footerControlGap: CGFloat = 0
-    static let regularModelWidth: CGFloat = 82
+    static let regularModelMaxWidth: CGFloat = 132
     static let compactModelWidth: CGFloat = controlTouchSize
 }
 
@@ -226,7 +226,6 @@ struct OpenClawChatAttachmentsStrip: View {
                             Image(systemName: "xmark.circle.fill")
                         }
                         .buttonStyle(.plain)
-                        .help("Remove attachment")
                         .accessibilityLabel(String(
                             format: String(localized: "Remove attachment: %@"), attachment.fileName))
                     }
@@ -513,12 +512,8 @@ private struct UnifiedChatMicMetadata: ViewModifier {
         if self.control.holdToTalk {
             return Text(self.control.phase == .listening ? "Release to finish dictation" : "Hold to dictate")
         }
-        if self.control.phase == .listening {
-            return Text("Finish dictation")
-        }
-        if self.isPending || self.control.isActive {
-            return Text("Cancel dictation")
-        }
-        return Text("Transcribe speech into the message")
+        if self.control.phase == .listening { return Text("Finish dictation") }
+        if self.isPending || self.control.isActive { return Text("Cancel dictation") }
+        return Text("Dictate")
     }
 }

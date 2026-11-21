@@ -227,6 +227,70 @@ Credential-file replacement or removal invalidates admitted grants when the
 one-second credential-file poll observes the change. Reconnect with a current grant;
 restoring a previous key does not revive old connections.
 
+## Organization co-author defaults
+
+Optionally import a commit-credit name/email pair from your existing identity-aware
+proxy. This works with authenticated profiles that have no verified GitHub account.
+It preserves the principal from `userHeader`; credit fields never grant access,
+create sign-in aliases, or establish GitHub account ownership.
+
+```json5
+{
+  gateway: {
+    auth: {
+      mode: "trusted-proxy",
+      trustedProxy: {
+        userHeader: "x-authenticated-subject",
+        gitCoauthor: {
+          nameHeader: "x-coauthor-name",
+          emailHeader: "x-coauthor-email",
+          emailVerifiedHeader: "x-coauthor-email-verified",
+        },
+      },
+    },
+  },
+}
+```
+
+Keep your existing proxy trust, allowlist, origin, and scope configuration alongside
+this example. Header names are case-insensitive HTTP field names. Both name and
+email must be present and valid. If configured, `emailVerifiedHeader` must contain
+exactly `true`; omit that setting only when your organization accepts the proxy's
+email assertion without a separate verification claim.
+
+For Keycloak with OAuth2 Proxy:
+
+1. Populate each user's first name, last name, and email. Configure client scopes
+   or protocol mappers to emit `name`, `email`, and, when required, `email_verified`.
+   Dedicated administrator-managed commit-name/email claims are also suitable.
+2. Configure OAuth2 Proxy to overwrite the three configured upstream headers from
+   those authenticated claims on HTTP requests and WebSocket upgrades. Strip any
+   client-supplied copies. Keep the existing issuer-qualified subject as the
+   authenticated principal; email is not an authorization input.
+3. Configure the matching `gitCoauthor` header names in OpenClaw and sign in again.
+   Profile shows the imported organization pair read-only.
+4. Each person explicitly enables **Git co-author credit** before their supplied
+   address is published in commit history. Importing claims does not enable it.
+
+Successful profile admission refreshes the organization pair. Missing, malformed,
+partial, or unverified configured claims clear that pair. Unchanged claims do not
+invalidate pending credit. Removing the mapping stops using stored organization
+defaults and leaves the existing GitHub fallback. Profile does not offer manual
+name/email entry or per-user identity overrides. Imported details are bound to the
+configured principal and credit header mapping. A replacement mapping withholds
+old details until the next successful sign-in and requires renewed disclosure
+consent. A stale Profile page cannot enable a pair it has not observed; it refreshes
+the details and asks for a new choice. Later email updates under the same mapping
+retain the profile-wide credit preference.
+
+Organization defaults use one protected metadata slot outside the 128-key user
+preference allowance. Importing them does not consume a user preference slot or
+block sign-in at that limit.
+
+These are organization-supplied credit details. An `email_verified` claim reflects
+the provider's email-verification policy, not proof of a GitHub account. See
+[Git co-author credit](/concepts/user-model#gateway-profile-and-github-credit).
+
 ## Per-identity scope grants
 
 Use `gateway.auth.identityScopes` to give selected verified users additional
@@ -648,6 +712,9 @@ A Gateway token cannot replace proxy authentication. Do not send identity header
     - Your proxy configuration for those specific headers.
     - Whether headers are being stripped somewhere in the chain.
 
+  </Accordion>
+  <Accordion title="trusted_proxy_access_invalid / trusted_proxy_access_user_mismatch / trusted_proxy_access_keys_unavailable">
+    Only with [Cloudflare Access JWT verification](/gateway/cloudflare-access#verify-the-access-jwt) on. `invalid`: the `cf-access-jwt-assertion` is not signed by the configured team, is for another application (`audience`), or has expired; check `issuer` and `audience`. `user_mismatch`: the user header differs from the assertion's signed email, so something other than Access set it. `keys_unavailable`: the Gateway could not load usable keys from `<issuer>/cdn-cgi/access/certs` and has no cached set younger than 24 hours. Check outbound HTTPS and the issuer's certs response.
   </Accordion>
   <Accordion title="trusted_proxy_user_not_allowed">
     The user is authenticated but not in `allowUsers`. Sign in with a permitted account or ask the Gateway administrator to review the intended access policy. Do not remove the allowlist as a connectivity workaround.

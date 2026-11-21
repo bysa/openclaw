@@ -250,7 +250,7 @@ struct OpenClawLiveActivity: Widget {
                         task.phase == .waiting ? "Waiting for next step" : "Working")
                         .font(OpenClawActivityType.caption)
                     Spacer()
-                    Text("\(task.completed)/\(task.total)")
+                    Text(verbatim: "\(task.completed)/\(task.total)")
                         .font(OpenClawActivityType.caption)
                     if task.phase == .working || task.phase == .waiting {
                         Text(state.startedAt, style: .timer)
@@ -271,12 +271,16 @@ struct OpenClawLiveActivity: Widget {
                 }
                 .frame(height: 4)
                 .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(task.completed) of \(task.total) steps completed")
+                .accessibilityLabel(Text(String(
+                    format: String(localized: "%lld of %lld steps completed"),
+                    task.completed,
+                    task.total)))
                 if let current = task.currentStep {
                     Text(verbatim: current).font(OpenClawActivityType.caption).lineLimit(1)
                 }
                 if let next = task.nextStep {
-                    Text("Next: \(next)").font(OpenClawActivityType.caption).lineLimit(1)
+                    Text(String(format: String(localized: "Next: %@"), next)).font(OpenClawActivityType.caption)
+                        .lineLimit(1)
                         .foregroundStyle(.secondary)
                 }
             }

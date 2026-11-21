@@ -1,6 +1,16 @@
 import SwiftUI
 
 extension OpenClawChatComposer {
+    var refreshButton: some View {
+        Button {
+            self.viewModel.refresh()
+        } label: {
+            Image(systemName: "arrow.clockwise")
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+    }
+
     var thinkingPicker: some View {
         Picker(selection: Binding(
             get: { self.viewModel.thinkingSelectionID },
@@ -49,7 +59,6 @@ extension OpenClawChatComposer {
         }
         .pickerStyle(.menu)
         .controlSize(.small)
-        .help(String(localized: "Verbosity"))
         .disabled(self.viewModel.isUpdatingSessionSettings)
     }
 
@@ -75,7 +84,6 @@ extension OpenClawChatComposer {
         }
         .pickerStyle(.menu)
         .controlSize(.small)
-        .help(String(localized: "Fast responses"))
         .disabled(self.viewModel.isUpdatingSessionSettings)
     }
 
@@ -127,7 +135,6 @@ extension OpenClawChatComposer {
         .accessibilityLabel("Model")
         .controlSize(.small)
         .frame(maxWidth: 240, alignment: .leading)
-        .help("Model")
         .disabled(self.viewModel.isUpdatingSessionSettings)
     }
 

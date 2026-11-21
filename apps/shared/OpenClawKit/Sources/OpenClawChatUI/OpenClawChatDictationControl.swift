@@ -26,12 +26,16 @@ public struct OpenClawChatDictationControl {
     public var finish: @MainActor () -> Void
     public var cancel: @MainActor () -> Void
 
+    private let levelProvider: (@MainActor () -> Double)?
+
+    /// When supplied, `levelProvider` overrides `level` only for live waveform rendering.
     public init(
         phase: Phase,
         holdToTalk: Bool = false,
         isAvailable: Bool,
         partialTranscript: String,
         level: Double,
+        levelProvider: (@MainActor () -> Double)? = nil,
         start: @escaping @MainActor () async throws -> String?,
         finish: @escaping @MainActor () -> Void,
         cancel: @escaping @MainActor () -> Void)
@@ -41,6 +45,7 @@ public struct OpenClawChatDictationControl {
         self.isAvailable = isAvailable
         self.partialTranscript = partialTranscript
         self.level = level
+        self.levelProvider = levelProvider
         self.start = start
         self.finish = finish
         self.cancel = cancel
@@ -48,6 +53,11 @@ public struct OpenClawChatDictationControl {
 
     public var isActive: Bool {
         self.phase != .idle
+    }
+
+    /// Resolve only in the waveform leaf, never while constructing the enclosing chat view.
+    @MainActor var resolvedLevel: Double {
+        self.levelProvider?() ?? self.level
     }
 }
 
